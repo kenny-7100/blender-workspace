@@ -1,4 +1,9 @@
 # Local Blender runtime, installers, preferences and downloaded extensions.
+# All modeling projects are private: inputs, scripts, parameters, models,
+# textures, previews, reports and project-specific notes remain local.
+/projects/
+/Open-Vinegar-Bottle.command
+
 /apps/
 /downloads/
 /config/
@@ -27,6 +32,8 @@
 /projects/**/outputs/
 /projects/**/renders/
 /projects/**/cache/
+/projects/**/references/originals/
+/projects/**/references/frames/
 
 # Python and editor caches.
 __pycache__/

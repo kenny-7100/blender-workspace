@@ -1,2 +1,2 @@
 #!/bin/zsh
-exec /Volumes/kenny/blender-workspace/bin/blender "$@"
+exec "${0:A:h}/bin/blender" "$@"
