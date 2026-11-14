@@ -6,6 +6,8 @@ from PIL import Image, ImageDraw, ImageOps
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--reference', type=Path, required=True)
 parser.add_argument('--render', type=Path, required=True)
+parser.add_argument('--reference-label', default='VIDEO REFERENCE')
+parser.add_argument('--render-label', default='BLENDER RENDER')
 parser.add_argument('--reference-crop', help='left,top,right,bottom in input pixels')
 parser.add_argument('--render-crop', help='left,top,right,bottom in input pixels')
 parser.add_argument('--output', type=Path, required=True)
@@ -25,7 +27,7 @@ def panel(path, crop):
 images = [panel(args.reference, args.reference_crop), panel(args.render, args.render_crop)]
 canvas = Image.new('RGB', (1040, 1040), '#20252b')
 draw = ImageDraw.Draw(canvas)
-for i, (im, title) in enumerate(zip(images, ['VIDEO REFERENCE', 'BLENDER v001'])):
+for i, (im, title) in enumerate(zip(images, [args.reference_label, args.render_label])):
     x = 20+i*520
     draw.text((x, 15), title, fill='white')
     canvas.paste(im, (x+(480-im.width)//2, 50+(960-im.height)//2))

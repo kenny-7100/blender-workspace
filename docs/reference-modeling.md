@@ -114,3 +114,5 @@ Blender后台可以通过临时`CLIP_EDITOR`上下文运行现有视频特征检
 `tools/mesh_primitives.py` 提供四个小函数：`box_mesh(name, dimensions)`、`uv_sphere_mesh(name, segments=24, rings=12)`、`cylinder_mesh(name, radius, depth, segments=32)`、`torus_mesh(name, major_radius, minor_radius, segments=40, sides=8)`。仅在Blender Python中调用，返回未关联对象的网格；调用方管理对象、集合、材质、变换和修改器。球为单位半径，其余按参数尺寸构建；圆柱和圆环沿Z轴。
 
 用于程序生成较多基础物件时，避免每次调用`bpy.ops`和应用变换所需的上下文更新。尺寸须为有限正值，细分计数须达最小值，环管半径须小于主半径。已在Blender4.5.9后台验证四类网格封闭、法向正体积、与解析体积近似一致以及无效参数拒绝，并实际用于室内场景构建和渲染。体积近似容差取决于细分，工具不提供自相交、制造或视觉相似度认证；不承诺对所有场景同等提速。
+
+对照图标题默认使用`VIDEO REFERENCE`与`BLENDER RENDER`，不会固定写某个项目版本。需要阶段标识时显式传`--render-label 'BLENDER vNNN'`，也可用`--reference-label`指定参考标题；版本文字仅是标签，不替代实际渲染清单。该选项已用现有参考/渲染生成并检查对照图。
