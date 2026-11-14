@@ -87,10 +87,14 @@ def main():
         sheet.paste(img, (i%4*260, i//4*432))
     sheet.save(args.output / 'contact-sheet.jpg', quality=90)
     # Do not copy location tags into the shareable report.
-    report = {'source_name': args.input.name, 'source_sha256': hashlib.sha256(args.input.read_bytes()).hexdigest(),
+    with args.input.open('rb') as source:
+        source_sha256 = hashlib.file_digest(source, 'sha256').hexdigest()
+    is_hlg = stream.get('color_transfer') == 'arib-std-b67'
+    report = {'source_name': args.input.name, 'source_sha256': source_sha256,
               'duration': stream['duration'], 'codec': stream['codec_name'],
               'color_transfer': stream.get('color_transfer'), 'color_primaries': stream.get('color_primaries'),
-              'preview_transform': 'approximate HLG -> BT.709 filmic SDR; not calibrated albedo',
+              'preview_transform': ('approximate HLG -> BT.709 filmic SDR; not calibrated albedo'
+                                    if is_hlg else 'decoded RGB preview; no dedicated transfer or gamut mapping'),
               'frames': records}
     (args.output / 'manifest.json').write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps(report, indent=2))
