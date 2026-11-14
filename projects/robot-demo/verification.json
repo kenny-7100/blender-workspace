@@ -1,0 +1,13 @@
+{
+  "blender": "4.5.9 LTS",
+  "python": "3.11.11 (main, Apr 25 2025, 12:39:20) [Clang 17.0.0 (clang-1700.0.13.3)]",
+  "objects": 39,
+  "mesh_objects": 35,
+  "render_engine": "CYCLES",
+  "resolution": [
+    800,
+    800
+  ],
+  "blend": "/Volumes/kenny/blender-workspace/projects/robot-demo/robot.blend",
+  "render": "/Volumes/kenny/blender-workspace/projects/robot-demo/robot.png"
+}

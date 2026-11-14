@@ -1,0 +1,38 @@
+# Local Blender runtime, installers, preferences and downloaded extensions.
+/apps/
+/downloads/
+/config/
+/cache/
+/tmp/
+/extensions/
+/datafiles/
+
+# Machine-specific files and credentials.
+.DS_Store
+._*
+.local/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Blender autosaves, backups and runtime reports.
+*.blend[0-9]*
+*.blend@
+*.log
+*.crash.txt
+
+# Regenerable per-run outputs; curated working files and previews stay tracked.
+/projects/**/outputs/
+/projects/**/renders/
+/projects/**/cache/
+
+# Python and editor caches.
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.idea/
+.vscode/
