@@ -111,8 +111,17 @@ Blender后台可以通过临时`CLIP_EDITOR`上下文运行现有视频特征检
 
 ## 无界面上下文的基础网格
 
-`tools/mesh_primitives.py` 提供四个小函数：`box_mesh(name, dimensions)`、`uv_sphere_mesh(name, segments=24, rings=12)`、`cylinder_mesh(name, radius, depth, segments=32)`、`torus_mesh(name, major_radius, minor_radius, segments=40, sides=8)`。仅在Blender Python中调用，返回未关联对象的网格；调用方管理对象、集合、材质、变换和修改器。球为单位半径，其余按参数尺寸构建；圆柱和圆环沿Z轴。
+`tools/mesh_primitives.py` 提供基础网格函数：`box_mesh(name, dimensions)`、`uv_sphere_mesh(name, segments=24, rings=12)`、`cylinder_mesh(name, radius, depth, segments=32)`、`torus_mesh(name, major_radius, minor_radius, segments=40, sides=8)`。仅在Blender Python中调用，返回未关联对象的网格；调用方管理对象、集合、材质、变换和修改器。球为单位半径，其余按参数尺寸构建；圆柱和圆环沿Z轴。
 
 用于程序生成较多基础物件时，避免每次调用`bpy.ops`和应用变换所需的上下文更新。尺寸须为有限正值，细分计数须达最小值，环管半径须小于主半径。已在Blender4.5.9后台验证四类网格封闭、法向正体积、与解析体积近似一致以及无效参数拒绝，并实际用于室内场景构建和渲染。体积近似容差取决于细分，工具不提供自相交、制造或视觉相似度认证；不承诺对所有场景同等提速。
 
 对照图标题默认使用`VIDEO REFERENCE`与`BLENDER RENDER`，不会固定写某个项目版本。需要阶段标识时显式传`--render-label 'BLENDER vNNN'`，也可用`--reference-label`指定参考标题；版本文字仅是标签，不替代实际渲染清单。该选项已用现有参考/渲染生成并检查对照图。
+
+
+### 薄板圆角不能只靠全边倒角
+
+薄盖板或镜片使用全边倒角时，厚度可能限制可用倒角宽度，平面外轮廓仍显方。已增加`rounded_box_mesh(name, dimensions, radius, corner_segments=8)`：按XY平面圆角矩形轮廓挤出Z厚度，圆角半径独立于厚度。调用方旋转对象即可用于竖直镜片；它不额外倒圆上下边。半径不得大于较短平面边的一半，最大半径处去重相邻切点，避免零长边。已验证薄片、最大半径的圆形/胶囊边界、封闭性、正体积与解析近似，并实际用于渲染；不是通用任意轮廓圆角工具。
+
+### 布料加厚后应检查接触面
+
+程序生成被子或衣物时，下垂起点若位于支撑物内侧，会与下方床单等表面相交，产生交错露面的三角形。先核对下垂边界与实际支撑边缘，再检查Solidify等修改器求值后的顶点；沿法线加厚还会产生横向位移，原始表面高于支撑不代表加厚后无穿插。当前项目将下垂起点留在支撑外侧并验证支撑范围内的求值最低点，修复了可见问题。该高度检查只适用于已知平面支撑区域，不验证复杂折叠自相交；不要用增加细分或材质噪声掩盖穿插。

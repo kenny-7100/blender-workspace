@@ -102,3 +102,45 @@ def torus_mesh(name, major_radius, minor_radius, segments=40, sides=8):
             faces.append((i*sides+j, ((i+1)%segments)*sides+j,
                           ((i+1)%segments)*sides+(j+1)%sides, i*sides+(j+1)%sides))
     return _mesh(name, vertices, faces, smooth=True)
+
+
+def rounded_box_mesh(name, dimensions, radius, corner_segments=8):
+    """Extruded rounded XY rectangle, with independent Z thickness.
+
+    Use this for thin lids/panels whose corner radius exceeds their thickness.
+    The faces are flat; only vertical sides are smooth. Radius cannot exceed
+    half the smaller planar dimension. Object rotation selects another plane.
+    """
+    dimensions = tuple(dimensions)
+    if len(dimensions) != 3:
+        raise ValueError('Rounded box dimensions must have three components')
+    _positive(*dimensions, radius)
+    _count(corner_segments, 1)
+    width, height, depth = dimensions
+    if radius > min(width, height)/2:
+        raise ValueError('Corner radius exceeds half the smaller planar dimension')
+    outline = []
+    for cx, cy, start in [
+        (width/2-radius, height/2-radius, 0),
+        (-width/2+radius, height/2-radius, 90),
+        (-width/2+radius, -height/2+radius, 180),
+        (width/2-radius, -height/2+radius, 270),
+    ]:
+        for j in range(corner_segments+1):
+            angle = math.radians(start+j*90/corner_segments)
+            point = (cx+radius*math.cos(angle), cy+radius*math.sin(angle))
+            # At the maximum radius adjacent arcs can share a tangent point.
+            if not outline or math.dist(point, outline[-1]) > 1e-10:
+                outline.append(point)
+    if math.dist(outline[0], outline[-1]) < 1e-10:
+        outline.pop()
+    count = len(outline)
+    vertices = [(x, y, z) for z in (-depth/2, depth/2) for x, y in outline]
+    faces = [tuple(reversed(range(count))), tuple(range(count, 2*count))]
+    for j in range(count):
+        k = (j+1)%count
+        faces.append((j, k, k+count, j+count))
+    mesh = _mesh(name, vertices, faces)
+    for face in list(mesh.polygons)[2:]:
+        face.use_smooth = True
+    return mesh
