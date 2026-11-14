@@ -7,21 +7,29 @@
 `uv run` 按 `pyproject.toml`、`uv.lock` 在忽略的 `.venv/` 中准备 NumPy 和 Pillow。Blender 仍使用自身 Python；FFmpeg/ffprobe 使用本机现有程序。
 
 ```sh
+uv run python tools/prepare_video.py INPUT_VIDEO --output projects/PROJECT/references/overview
+# After selecting useful views, extract detail frames separately.
 uv run python tools/prepare_video.py INPUT_VIDEO --output projects/PROJECT/references/frames --times 0.5,1.5,3.5 --height 1440
 ```
 
 原件不变，输出时间命名 PNG、联系图和不含定位的清单。FFmpeg 应用显示旋转后缩放；采样时间对应邻近视频帧，不是精确姿态记录。拉普拉斯方差只是整幅图的清晰度辅助指标，不代表主体局部质量。
+
+默认按视频实际时长均匀采样最多 12 帧，工作图高 480 像素，用于低成本总览；`--count` 调整总览数量。选定角度后再用 `--times` 和 `--height 1440` 提取细节。显式时间先全部验证，再写输出，避免处理到一半才发现越界；输出文件名的时间精度为 0.01 秒，重复名称拒绝。已有项目依赖特定帧名时保留显式时间，不用新的自动总览覆盖其参考来源。该工具尚无派生素材缓存或自动挑选主体功能。
 
 HLG 使用近似反变换、BT.2020 到 BT.709 矩阵与固定 filmic 映射；不应用 Dolby Vision 动态元数据，不是颜色标定或去光照。其他 HDR 格式未配置专门变换。已用真实 HLG 竖屏素材验证解码与旋转抽帧，具体证据留在私有项目。
 
 ## 后台渲染与检查
 
 ```sh
-./bin/blender --background FILE.blend --python-exit-code 1 --python tools/render_views.py -- --output OUTPUT_DIR --views Hero,Front,Back --samples 24 --width 600 --height 800 --device METAL
+./bin/blender --background FILE.blend --python-exit-code 1 --python tools/render_views.py -- --output projects/PROJECT/outputs/quick --quality preview --device METAL
 ./bin/blender --background FILE.blend --python-exit-code 1 --python tools/inspect_scene.py -- --output REPORT.json
 ```
 
 渲染使用已有 `Camera.<名称>`，不保存场景改动，可选 `--device CPU`。Metal 在本机已实际完成渲染；无对应设备时明确失败，不静默切换。默认先小图低采样、串行处理，必要时提高质量，完成后退出进程。
+
+工具默认只渲染 `Hero`，使用 `--quality preview`（24 samples、600 × 800）；明确需要最终图时用 `--quality final`（128 samples、900 × 1200）。显式 `--samples/--width/--height` 可覆盖档位，不为省时静默降低已要求的质量。设备默认仍为 CPU，本机已验证的 Metal 由调用者显式选择。
+
+所有请求相机先统一检查，避免前几张渲染完才发现后面的名称无效。完成图通过临时文件替换，清单逐张记录耗时及 `running/complete/failed` 状态；只有当前清单中的完成视角能证明此次产出，目录中的旧图片不能代替。进程异常终止可能停留在 `running`，不能当作完成。记录便于比较相同输入和设置的耗时，不提供跨设备提速承诺，也尚未实现自动增量跳过。
 
 检查读取 `role=asset` 网格，记录原网格和修改器求值后的非流形边、体积、尺寸以及缺失图片，不保存模型。实体项目可加 `--require-closed` 要求求值后封闭且正体积；有意开口的曲面不机械使用。不验证自相交、真实尺寸、照片相似度或材质准确性。
 
@@ -75,7 +83,7 @@ HLG 工作图和显示变换均不等于准确反射率；未进行受控颜色�
 
 尚可优化但未实现：只重建发生变化的资产、只渲染受影响视角、缓存未变化的派生素材与模型构建记录。增量处理需要可靠的输入依赖与失效规则，不能仅凭文件存在就跳过。未测量端到端耗时，不承诺具体倍数提速。
 
-代码检查另外发现全量读视频计算哈希会增加大文件内存占用；现改为流式计算。清单按实际源传递函数描述是否执行 HLG 映射，避免给未处理的其他格式错误标记。默认抽帧时间表仍有限制：较短素材要显式传入有效 `--times`，目前没有自动覆盖策略。
+代码检查另外发现全量读视频计算哈希会增加大文件内存占用；现改为流式计算。清单按实际源传递函数描述是否执行 HLG 映射，避免给未处理的其他格式错误标记。原先针对单个案例的默认时间表已替换为按时长采样；具体项目所需时间仍显式指定。
 
 ### 结构通过、图片打包和隐私保护分别检查
 

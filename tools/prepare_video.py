@@ -6,6 +6,7 @@ HLG previews use an explicit approximate SDR transform, not calibrated albedo.
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 import subprocess
 
@@ -27,6 +28,8 @@ def extract(path, time, stream, max_height):
         '-frames:v', '1', '-vf', f'scale=-2:{max_height}', '-pix_fmt', 'rgb48le',
         '-f', 'image2pipe', '-vcodec', 'ppm', '-threads', '1', '-'
     ])
+    if not raw:
+        raise ValueError(f'No decoded frame at {time:.3f}s; choose an earlier timestamp')
     # PPM keeps 16-bit samples and embeds the post-rotation dimensions.
     import io
     header = io.BytesIO(raw)
@@ -60,16 +63,35 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('input', type=Path)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--times', default='0.5,1.5,2.5,3.5,4.5,5.5,6.5,7.5,8.5,9.5,10.5,11.2')
-    parser.add_argument('--height', type=int, default=1440)
+    parser.add_argument('--times', help='Explicit seconds, separated by commas; otherwise sample the clip evenly')
+    parser.add_argument('--count', type=int, default=12, help='Automatic overview sample count')
+    parser.add_argument('--height', type=int, default=480, help='Working image height; use 1440 or native detail only for selected views')
     args = parser.parse_args()
+    if args.height < 64 or args.count < 1:
+        parser.error('height must be at least 64 and count must be positive')
     stream, data = probe(args.input)
+    duration = float(stream.get('duration') or data['format']['duration'])
+    if not math.isfinite(duration) or duration <= 0:
+        parser.error('Video duration must be finite and positive')
+    try:
+        if args.times is not None:
+            times = [float(t) for t in args.times.split(',')]
+        else:
+            count = min(args.count, max(1, int(duration*100)))
+            if stream.get('nb_frames', '').isdigit():
+                count = min(count, max(1, int(stream['nb_frames'])))
+            times = [i*duration/count for i in range(count)]
+        if any(not math.isfinite(t) or not 0 <= t < duration for t in times):
+            raise ValueError('Every timestamp must be finite and inside the video duration')
+        names = [f'frame-{t:06.2f}s.png' for t in times]
+        if len(names) != len(set(names)):
+            raise ValueError('Timestamps must have distinct filenames at 0.01 second precision')
+    except ValueError as error:
+        parser.error(str(error))
     args.output.mkdir(parents=True, exist_ok=True)
     records = []
     thumbs = []
-    for time in map(float, args.times.split(',')):
-        if not 0 <= time < float(stream['duration']):
-            raise ValueError(f'Timestamp outside video: {time}')
+    for time in times:
         img = extract(args.input, time, stream, args.height)
         name = f'frame-{time:06.2f}s.png'
         img.save(args.output / name)
@@ -91,7 +113,9 @@ def main():
         source_sha256 = hashlib.file_digest(source, 'sha256').hexdigest()
     is_hlg = stream.get('color_transfer') == 'arib-std-b67'
     report = {'source_name': args.input.name, 'source_sha256': source_sha256,
-              'duration': stream['duration'], 'codec': stream['codec_name'],
+              'duration': duration, 'codec': stream['codec_name'],
+              'sampling': 'explicit' if args.times is not None else 'uniform',
+              'requested_height': args.height,
               'color_transfer': stream.get('color_transfer'), 'color_primaries': stream.get('color_primaries'),
               'preview_transform': ('approximate HLG -> BT.709 filmic SDR; not calibrated albedo'
                                     if is_hlg else 'decoded RGB preview; no dedicated transfer or gamut mapping'),

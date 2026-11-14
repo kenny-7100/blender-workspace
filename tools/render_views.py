@@ -6,16 +6,35 @@ import argparse
 import json
 from pathlib import Path
 import sys
+import time
 import bpy
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--output', type=Path, required=True)
-parser.add_argument('--views', default='Hero,Front,Back,Detail')
-parser.add_argument('--samples', type=int, default=64)
-parser.add_argument('--width', type=int, default=900)
-parser.add_argument('--height', type=int, default=1200)
+parser.add_argument('--views', default='Hero')
+parser.add_argument('--quality', choices=['preview', 'final'], default='preview')
+parser.add_argument('--samples', type=int)
+parser.add_argument('--width', type=int)
+parser.add_argument('--height', type=int)
 parser.add_argument('--device', choices=['CPU', 'METAL'], default='CPU')
 args = parser.parse_args(sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else [])
+defaults = (24, 600, 800) if args.quality == 'preview' else (128, 900, 1200)
+for name, default in zip(('samples', 'width', 'height'), defaults):
+    if getattr(args, name) is None:
+        setattr(args, name, default)
+    if getattr(args, name) < 1:
+        parser.error(f'{name} must be positive')
+names = [name.strip() for name in args.views.split(',')]
+if any(not name or '/' in name or '\\' in name for name in names):
+    parser.error('views must contain camera suffixes without path separators')
+if len({name.lower() for name in names}) != len(names):
+    parser.error('views must have distinct output filenames')
+view_cameras = []
+for name in names:
+    camera = bpy.data.objects.get('Camera.'+name)
+    if camera is None or camera.type != 'CAMERA':
+        parser.error(f'Missing camera Camera.{name}; no views were rendered')
+    view_cameras.append((name, camera))
 args.output.mkdir(parents=True, exist_ok=True)
 scene = bpy.context.scene
 scene.render.engine = 'CYCLES'
@@ -38,15 +57,37 @@ if args.device == 'METAL':
 else:
     scene.cycles.device = 'CPU'
 records = []
-for name in args.views.split(','):
-    camera = bpy.data.objects.get('Camera.'+name)
-    if camera is None or camera.type != 'CAMERA':
-        raise ValueError(f'Missing camera Camera.{name}')
-    scene.camera = camera
-    scene.render.filepath = str(args.output.resolve() / f'{name.lower()}.png')
-    bpy.ops.render.render(write_still=True)
-    records.append({'camera': camera.name, 'file': scene.render.filepath})
-report = {'blender': bpy.app.version_string, 'device': args.device, 'samples': args.samples,
-          'resolution': [args.width, args.height], 'views': records}
-(args.output / 'render-report.json').write_text(json.dumps(report, indent=2)+'\n')
+report = {'blender': bpy.app.version_string, 'device': args.device, 'quality': args.quality,
+          'samples': args.samples, 'resolution': [args.width, args.height],
+          'source_file': Path(bpy.data.filepath).name, 'status': 'running', 'views': records}
+started = time.perf_counter()
+
+
+def write_report():
+    report['elapsed_seconds'] = round(time.perf_counter()-started, 3)
+    temporary = args.output / '.render-report.partial.json'
+    temporary.write_text(json.dumps(report, indent=2)+'\n')
+    temporary.replace(args.output / 'render-report.json')
+
+
+write_report()
+try:
+    for name, camera in view_cameras:
+        scene.camera = camera
+        target = args.output.resolve() / f'{name.lower()}.png'
+        temporary = target.with_name('.'+target.stem+'.partial.png')
+        scene.render.filepath = str(temporary)
+        view_started = time.perf_counter()
+        bpy.ops.render.render(write_still=True)
+        temporary.replace(target)
+        records.append({'camera': camera.name, 'file': str(target),
+                        'elapsed_seconds': round(time.perf_counter()-view_started, 3)})
+        write_report()
+    report['status'] = 'complete'
+except Exception as error:
+    report['status'] = 'failed'
+    report['error_type'] = type(error).__name__
+    write_report()
+    raise
+write_report()
 print('RENDER_VIEWS_OK', json.dumps(report))
