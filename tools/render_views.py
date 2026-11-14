@@ -12,12 +12,19 @@ import bpy
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--output', type=Path, required=True)
 parser.add_argument('--views', default='Hero')
+parser.add_argument('--scene', help='Render cameras in this scene; default is the active scene')
 parser.add_argument('--quality', choices=['preview', 'final'], default='preview')
 parser.add_argument('--samples', type=int)
 parser.add_argument('--width', type=int)
 parser.add_argument('--height', type=int)
 parser.add_argument('--device', choices=['CPU', 'METAL'], default='CPU')
 args = parser.parse_args(sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else [])
+if args.scene:
+    selected_scene = bpy.data.scenes.get(args.scene)
+    if selected_scene is None:
+        parser.error(f'Missing scene {args.scene}; no views were rendered')
+    bpy.context.window.scene = selected_scene
+scene = bpy.context.scene
 defaults = (24, 600, 800) if args.quality == 'preview' else (128, 900, 1200)
 for name, default in zip(('samples', 'width', 'height'), defaults):
     if getattr(args, name) is None:
@@ -31,12 +38,11 @@ if len({name.lower() for name in names}) != len(names):
     parser.error('views must have distinct output filenames')
 view_cameras = []
 for name in names:
-    camera = bpy.data.objects.get('Camera.'+name)
+    camera = scene.objects.get('Camera.'+name)
     if camera is None or camera.type != 'CAMERA':
         parser.error(f'Missing camera Camera.{name}; no views were rendered')
     view_cameras.append((name, camera))
 args.output.mkdir(parents=True, exist_ok=True)
-scene = bpy.context.scene
 scene.render.engine = 'CYCLES'
 scene.cycles.samples = args.samples
 scene.cycles.use_denoising = True
@@ -58,6 +64,7 @@ else:
     scene.cycles.device = 'CPU'
 records = []
 report = {'blender': bpy.app.version_string, 'device': args.device, 'quality': args.quality,
+          'scene': scene.name,
           'samples': args.samples, 'resolution': [args.width, args.height],
           'source_file': Path(bpy.data.filepath).name, 'status': 'running', 'views': records}
 started = time.perf_counter()
